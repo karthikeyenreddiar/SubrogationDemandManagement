@@ -1,0 +1,213 @@
+@page "/cases/{CaseId:guid}"
+@using SubrogationDemandManagement.Domain.Models
+@using SubrogationDemandManagement.UI.Services
+@inject SubrogationApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Case Details</PageTitle>
+
+@if (isLoading)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else if (subrogationCase == null)
+{
+    <div class="alert alert-warning">Case not found.</div>
+    <button class="btn btn-secondary" @onclick="GoBack">Back to List</button>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-0">Claim @subrogationCase.ClaimId</h1>
+            <span class="badge @GetStatusBadgeClass(subrogationCase.Status)">@subrogationCase.Status</span>
+        </div>
+        <div>
+            <button class="btn btn-outline-secondary me-2" @onclick="GoBack">Back</button>
+            <button class="btn btn-primary" @onclick="CreatePackage">Create Demand Package</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    Case Information
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Policy Number:</strong> @subrogationCase.PolicyNumber
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loss Date:</strong> @subrogationCase.LossDate.ToShortDateString()
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Insured Liability:</strong> @subrogationCase.InsuredLiabilityPercent%
+                        </div>
+                        <div class="col-md-6">
+                            <strong>3rd Party Liability:</strong> @subrogationCase.ThirdPartyLiabilityPercent%
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <strong>Internal Notes:</strong>
+                            <p class="text-muted">@subrogationCase.InternalNotes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Demand Packages</span>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="CreatePackage">New</button>
+                </div>
+                <div class="card-body">
+                    @if (packages == null || !packages.Any())
+                    {
+                        <p class="text-muted">No demand packages created yet.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pkg in packages)
+                                {
+                                    <tr>
+                                        <td>v@pkg.VersionNumber</td>
+                                        <td>@pkg.Status</td>
+                                        <td>@pkg.CreatedAt.ToShortDateString()</td>
+                                        <td>
+                                            @if (pkg.Status == PackageStatus.Draft)
+                                            {
+                                                <button class="btn btn-sm btn-success" @onclick="() => GeneratePdf(pkg.PackageId)">Generate PDF</button>
+                                            }
+                                            else if (pkg.Status == PackageStatus.Generated)
+                                            {
+                                                <button class="btn btn-sm btn-primary" @onclick="() => SendPackage(pkg.PackageId)">Send</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    Financials
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Paid Indemnity:</span>
+                        <strong>@subrogationCase.TotalPaidIndemnity.ToString("C")</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Paid Expense:</span>
+                        <strong>@subrogationCase.TotalPaidExpense.ToString("C")</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Reserves:</span>
+                        <strong>@subrogationCase.OutstandingReserves.ToString("C")</strong>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between">
+                        <span class="h5">Recovery Sought:</span>
+                        <strong class="h5 text-primary">@subrogationCase.RecoverySought.ToString("C")</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid CaseId { get; set; }
+
+    private SubrogationCase? subrogationCase;
+    private List<DemandPackage>? packages;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            subrogationCase = await ApiClient.GetCaseAsync(CaseId);
+            if (subrogationCase != null)
+            {
+                packages = await ApiClient.GetPackagesAsync(CaseId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading case: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/cases");
+    }
+
+    private async Task CreatePackage()
+    {
+        if (subrogationCase == null) return;
+
+        var newPackage = new DemandPackage
+        {
+            SubrogationCaseId = subrogationCase.CaseId,
+            TenantId = subrogationCase.TenantId,
+            CreatedBy = "User" // TODO: Get from auth
+        };
+
+        await ApiClient.CreatePackageAsync(newPackage);
+        packages = await ApiClient.GetPackagesAsync(CaseId);
+    }
+
+    private async Task GeneratePdf(Guid packageId)
+    {
+        await ApiClient.GeneratePackageAsync(packageId);
+        // Refresh list to show status change (might need polling in real app)
+        packages = await ApiClient.GetPackagesAsync(CaseId);
+    }
+
+    private async Task SendPackage(Guid packageId)
+    {
+        // For demo, send to hardcoded email
+        await ApiClient.SendPackageAsync(packageId, new List<string> { "demo@example.com" });
+    }
+
+    private string GetStatusBadgeClass(CaseStatus status) => status switch
+    {
+        CaseStatus.Draft => "bg-secondary",
+        CaseStatus.DemandSent => "bg-primary",
+        CaseStatus.ResponseReceived => "bg-info",
+        CaseStatus.Negotiating => "bg-warning text-dark",
+        CaseStatus.Settled => "bg-success",
+        CaseStatus.Closed => "bg-dark",
+        CaseStatus.Cancelled => "bg-danger",
+        _ => "bg-secondary"
+    };
+}
