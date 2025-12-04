@@ -3,7 +3,14 @@ using SubrogationDemandManagement.Services.Data;
 using SubrogationDemandManagement.Services.Data.Repositories;
 using SubrogationDemandManagement.Services.Messaging;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Add Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAdB2C"));
 
 // Add services to the container
 builder.Services.AddControllers();
@@ -32,6 +39,10 @@ builder.Services.AddScoped<DemandPackageRepository>();
 
 // Register Service Bus service
 builder.Services.AddSingleton<ServiceBusService>();
+
+// Register Auth services
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<SubrogationDemandManagement.Services.Auth.ICurrentTenantService, SubrogationDemandManagement.API.Services.CurrentTenantService>();
 
 // Add CORS
 builder.Services.AddCors(options =>
@@ -63,6 +74,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowBlazorClient");
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

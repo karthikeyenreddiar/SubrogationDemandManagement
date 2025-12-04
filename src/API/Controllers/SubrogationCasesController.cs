@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using SubrogationDemandManagement.Domain.Models;
 using SubrogationDemandManagement.Services.Data.Repositories;
 
+using SubrogationDemandManagement.Services.Auth;
+
 namespace SubrogationDemandManagement.API.Controllers;
 
 [ApiController]
@@ -10,13 +12,31 @@ public class SubrogationCasesController : ControllerBase
 {
     private readonly ILogger<SubrogationCasesController> _logger;
     private readonly ISubrogationCaseRepository _repository;
+    private readonly ICurrentTenantService _tenantService;
 
     public SubrogationCasesController(
         ILogger<SubrogationCasesController> logger,
-        ISubrogationCaseRepository repository)
+        ISubrogationCaseRepository repository,
+        ICurrentTenantService tenantService)
     {
         _logger = logger;
         _repository = repository;
+        _tenantService = tenantService;
+    }
+
+    private Guid GetEffectiveTenantId(Guid requestedTenantId)
+    {
+        var authenticatedTenantId = _tenantService.TenantId;
+        if (authenticatedTenantId.HasValue)
+        {
+            if (requestedTenantId != Guid.Empty && requestedTenantId != authenticatedTenantId.Value)
+            {
+                 _logger.LogWarning("User requested tenant {Requested} but is authenticated for {Authenticated}", requestedTenantId, authenticatedTenantId);
+                 throw new UnauthorizedAccessException("User is not authorized for this tenant.");
+            }
+            return authenticatedTenantId.Value;
+        }
+        return requestedTenantId;
     }
 
     /// <summary>
@@ -28,6 +48,7 @@ public class SubrogationCasesController : ControllerBase
         [FromQuery] int skip = 0,
         [FromQuery] int take = 50)
     {
+        tenantId = GetEffectiveTenantId(tenantId);
         _logger.LogInformation("Fetching cases for tenant {TenantId}, skip={Skip}, take={Take}", 
             tenantId, skip, take);
         
@@ -43,6 +64,7 @@ public class SubrogationCasesController : ControllerBase
         [FromQuery] Guid tenantId,
         [FromQuery] CaseStatus status)
     {
+        tenantId = GetEffectiveTenantId(tenantId);
         _logger.LogInformation("Fetching cases for tenant {TenantId} with status {Status}", 
             tenantId, status);
         
@@ -62,6 +84,16 @@ public class SubrogationCasesController : ControllerBase
         
         if (subrogationCase == null)
             return NotFound();
+
+        // Validate tenant access
+        try 
+        {
+            GetEffectiveTenantId(subrogationCase.TenantId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
             
         return Ok(subrogationCase);
     }
@@ -72,6 +104,7 @@ public class SubrogationCasesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<SubrogationCase>> CreateCase([FromBody] SubrogationCase subrogationCase)
     {
+        subrogationCase.TenantId = GetEffectiveTenantId(subrogationCase.TenantId);
         _logger.LogInformation("Creating new case for claim {ClaimId}", subrogationCase.ClaimId);
         
         subrogationCase.CaseId = Guid.NewGuid();
@@ -93,6 +126,16 @@ public class SubrogationCasesController : ControllerBase
         
         if (id != subrogationCase.CaseId)
             return BadRequest("Case ID mismatch");
+
+        // Ensure user has access to the tenant of the case being updated
+        try 
+        {
+            GetEffectiveTenantId(subrogationCase.TenantId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         
         subrogationCase.ModifiedAt = DateTime.UtcNow;
         await _repository.UpdateAsync(subrogationCase);
@@ -108,6 +151,7 @@ public class SubrogationCasesController : ControllerBase
         [FromQuery] Guid tenantId,
         [FromQuery] CaseStatus status)
     {
+        tenantId = GetEffectiveTenantId(tenantId);
         var count = await _repository.GetCountByTenantAndStatusAsync(tenantId, status);
         return Ok(count);
     }

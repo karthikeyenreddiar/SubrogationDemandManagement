@@ -42,9 +42,9 @@
 ## 🚀 Upcoming Tasks
 
 ### Security
-- [ ] Configure Azure AD B2C
-- [ ] Implement JWT Authentication in API
-- [ ] Add Authorization policies (Tenant isolation)
+- [x] Configure Azure AD B2C (Code configuration complete, requires Portal setup)
+- [x] Implement JWT Authentication in API
+- [x] Add Authorization policies (Tenant isolation)
 
 ### Functional Implementation
 - [ ] Implement real PDF generation (QuestPDF/PdfSharp)

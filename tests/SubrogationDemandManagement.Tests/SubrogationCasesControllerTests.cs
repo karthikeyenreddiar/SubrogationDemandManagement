@@ -5,19 +5,23 @@ using SubrogationDemandManagement.API.Controllers;
 using SubrogationDemandManagement.Domain.Models;
 using SubrogationDemandManagement.Services.Data.Repositories;
 
+using SubrogationDemandManagement.Services.Auth;
+
 namespace SubrogationDemandManagement.Tests;
 
 public class SubrogationCasesControllerTests
 {
     private readonly Mock<ISubrogationCaseRepository> _mockRepository;
     private readonly Mock<ILogger<SubrogationCasesController>> _mockLogger;
+    private readonly Mock<ICurrentTenantService> _mockTenantService;
     private readonly SubrogationCasesController _controller;
 
     public SubrogationCasesControllerTests()
     {
         _mockRepository = new Mock<ISubrogationCaseRepository>();
         _mockLogger = new Mock<ILogger<SubrogationCasesController>>();
-        _controller = new SubrogationCasesController(_mockLogger.Object, _mockRepository.Object);
+        _mockTenantService = new Mock<ICurrentTenantService>();
+        _controller = new SubrogationCasesController(_mockLogger.Object, _mockRepository.Object, _mockTenantService.Object);
     }
 
     [Fact]
