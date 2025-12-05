@@ -53,9 +53,9 @@
 - [ ] Implement "Parent System Sync" logic
 
 ### DevOps
-- [ ] Create Bicep templates for Azure resources
-- [ ] Setup GitHub Actions for Build & Test
-- [ ] Setup GitHub Actions for Deployment
+- [x] Create Bicep templates for Azure resources
+- [x] Setup GitHub Actions for Build & Test
+- [x] Setup GitHub Actions for Deployment
 
 ### UI Enhancements
 - [ ] Add error handling and toast notifications

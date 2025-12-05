@@ -1,0 +1,86 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  AZURE_RESOURCE_GROUP: 'rsg-subrogation-dev'
+  AZURE_LOCATION: 'eastus'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 7.0.x
+    - name: Build and Publish API
+      run: dotnet publish src/API/SubrogationDemandManagement.API.csproj -c Release -o ./publish/api
+    - name: Build and Publish Functions
+      run: dotnet publish src/Functions/SubrogationDemandManagement.Functions.csproj -c Release -o ./publish/func
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-deploy
+        path: ./publish
+
+  deploy-infra:
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      apiAppName: ${{ steps.deploy.outputs.apiAppName }}
+      funcAppName: ${{ steps.deploy.outputs.funcAppName }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Create Resource Group
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location ${{ env.AZURE_LOCATION }}
+    - name: Deploy Bicep
+      uses: azure/arm-deploy@v1
+      id: deploy
+      with:
+        scope: resourcegroup
+        resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+        template: ./infra/main.bicep
+        parameters: sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }} environment=dev
+
+  deploy-apps:
+    runs-on: ubuntu-latest
+    needs: [deploy-infra]
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: app-deploy
+        path: ./publish
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Deploy API
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ needs.deploy-infra.outputs.apiAppName }}
+        package: ./publish/api
+    - name: Deploy Functions
+      uses: azure/functions-action@v1
+      with:
+        app-name: ${{ needs.deploy-infra.outputs.funcAppName }}
+        package: ./publish/func
