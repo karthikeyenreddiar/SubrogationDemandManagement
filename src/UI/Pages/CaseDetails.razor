@@ -3,13 +3,20 @@
 @using SubrogationDemandManagement.UI.Services
 @inject SubrogationApiClient ApiClient
 @inject NavigationManager Navigation
+@inject ToastService ToastService
 
 <PageTitle>Case Details</PageTitle>
 
 @if (isLoading)
 {
-    <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
+    <div class="row">
+        <div class="col-md-8">
+            <SkeletonLoader Class="p-5 mb-4" />
+            <SkeletonLoader Class="p-5 mb-4" />
+        </div>
+        <div class="col-md-4">
+            <SkeletonLoader Class="p-5 mb-4" />
+        </div>
     </div>
 }
 else if (subrogationCase == null)
@@ -202,7 +209,14 @@ else
     private async Task ManageDocuments(DemandPackage package)
     {
         selectedPackage = package;
-        selectedPackageDocuments = await ApiClient.GetDocumentsAsync(package.PackageId);
+        try
+        {
+            selectedPackageDocuments = await ApiClient.GetDocumentsAsync(package.PackageId);
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to load documents: {ex.Message}");
+        }
     }
     
     private async Task UploadFile(InputFileChangeEventArgs e)
@@ -228,11 +242,11 @@ else
             
             // Refresh documents
             selectedPackageDocuments = await ApiClient.GetDocumentsAsync(selectedPackage.PackageId);
+            ToastService.ShowSuccess("Document uploaded successfully");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error uploading file: {ex.Message}");
-            // In a real app, show a toast notification
+            ToastService.ShowError($"Error uploading file: {ex.Message}");
         }
         finally
         {
@@ -248,12 +262,14 @@ else
         {
             await ApiClient.DeleteDocumentAsync(selectedPackage.PackageId, doc.PackageDocumentId);
             selectedPackageDocuments?.Remove(doc);
+            ToastService.ShowSuccess("Document deleted");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting document: {ex.Message}");
+            ToastService.ShowError($"Error deleting document: {ex.Message}");
         }
     }
+    
     protected override async Task OnInitializedAsync()
     {
         try
@@ -266,7 +282,7 @@ else
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading case: {ex.Message}");
+            ToastService.ShowError($"Error loading case: {ex.Message}");
         }
         finally
         {
@@ -283,28 +299,50 @@ else
     {
         if (subrogationCase == null) return;
 
-        var newPackage = new DemandPackage
+        try
         {
-            SubrogationCaseId = subrogationCase.CaseId,
-            TenantId = subrogationCase.TenantId,
-            CreatedBy = "User" // TODO: Get from auth
-        };
+            var newPackage = new DemandPackage
+            {
+                SubrogationCaseId = subrogationCase.CaseId,
+                TenantId = subrogationCase.TenantId,
+                CreatedBy = "User" // TODO: Get from auth
+            };
 
-        await ApiClient.CreatePackageAsync(newPackage);
-        packages = await ApiClient.GetPackagesAsync(CaseId);
+            await ApiClient.CreatePackageAsync(newPackage);
+            packages = await ApiClient.GetPackagesAsync(CaseId);
+            ToastService.ShowSuccess("Demand package created");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to create package: {ex.Message}");
+        }
     }
 
     private async Task GeneratePdf(Guid packageId)
     {
-        await ApiClient.GeneratePackageAsync(packageId);
-        // Refresh list to show status change (might need polling in real app)
-        packages = await ApiClient.GetPackagesAsync(CaseId);
+        try
+        {
+            await ApiClient.GeneratePackageAsync(packageId);
+            packages = await ApiClient.GetPackagesAsync(CaseId);
+            ToastService.ShowSuccess("PDF generation started");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to start PDF generation: {ex.Message}");
+        }
     }
 
     private async Task SendPackage(Guid packageId)
     {
-        // For demo, send to hardcoded email
-        await ApiClient.SendPackageAsync(packageId, new List<string> { "demo@example.com" });
+        try
+        {
+            await ApiClient.SendPackageAsync(packageId, new List<string> { "demo@example.com" });
+            ToastService.ShowSuccess("Package sent successfully");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to send package: {ex.Message}");
+        }
     }
 
     private string GetStatusBadgeClass(CaseStatus status) => status switch

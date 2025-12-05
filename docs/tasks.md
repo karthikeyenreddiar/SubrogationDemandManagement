@@ -58,7 +58,7 @@
 - [x] Setup GitHub Actions for Deployment
 
 ### UI Enhancements
-- [ ] Add error handling and toast notifications
-- [ ] Add loading skeletons/states
-- [ ] Implement pagination controls in UI
-- [ ] Add search and filter capabilities
+- [x] Add error handling and toast notifications
+- [x] Add loading skeletons/states
+- [x] Implement pagination controls in UI
+- [x] Add search and filter capabilities

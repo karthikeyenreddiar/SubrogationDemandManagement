@@ -1,0 +1,21 @@
+@if (Count > 0)
+{
+    @for (int i = 0; i < Count; i++)
+    {
+        <div class="skeleton-wrapper @Class">
+            @ChildContent
+        </div>
+    }
+}
+else
+{
+    <div class="skeleton-wrapper @Class">
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public int Count { get; set; } = 1;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

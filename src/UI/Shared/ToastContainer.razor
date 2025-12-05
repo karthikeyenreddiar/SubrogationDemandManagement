@@ -1,0 +1,73 @@
+@using SubrogationDemandManagement.UI.Services
+@inject ToastService ToastService
+@implements IDisposable
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1050">
+    @foreach (var toast in toasts)
+    {
+        <div class="toast show align-items-center text-white @GetToastClass(toast.Level) border-0 mb-2 fade-in-toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    @if (!string.IsNullOrEmpty(toast.Title))
+                    {
+                        <strong>@toast.Title</strong><br/>
+                    }
+                    @toast.Message
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="Close" @onclick="() => RemoveToast(toast)"></button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ToastMessage> toasts = new List<ToastMessage>();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShow += ShowToast;
+        ToastService.OnHide += RemoveToast;
+    }
+
+    private void ShowToast(ToastMessage message)
+    {
+        toasts.Add(message);
+        StateHasChanged();
+
+        if (message.Duration > 0)
+        {
+            var timer = new System.Timers.Timer(message.Duration);
+            timer.AutoReset = false;
+            timer.Elapsed += (sender, args) =>
+            {
+                RemoveToast(message);
+                timer.Dispose();
+            };
+            timer.Start();
+        }
+    }
+
+    private void RemoveToast(ToastMessage message)
+    {
+        InvokeAsync(() =>
+        {
+            toasts.Remove(message);
+            StateHasChanged();
+        });
+    }
+
+    private string GetToastClass(ToastLevel level) => level switch
+    {
+        ToastLevel.Info => "bg-primary",
+        ToastLevel.Success => "bg-success",
+        ToastLevel.Warning => "bg-warning text-dark",
+        ToastLevel.Error => "bg-danger",
+        _ => "bg-primary"
+    };
+
+    public void Dispose()
+    {
+        ToastService.OnShow -= ShowToast;
+        ToastService.OnHide -= RemoveToast;
+    }
+}
