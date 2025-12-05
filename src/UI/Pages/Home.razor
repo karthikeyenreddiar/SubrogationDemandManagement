@@ -1,16 +1,56 @@
 @page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@inject NavigationManager Navigation
 
 <PageTitle>Subrogation Demand Management</PageTitle>
 
-<h1>Subrogation Demand Management System</h1>
+<AuthorizeView>
+    <Authorized>
+        <div class="jumbotron p-5 bg-light rounded-3 mt-4">
+            <h1 class="display-4">Welcome Back, @context.User.Identity?.Name!</h1>
+            <p class="lead">Dashboard not yet implemented.</p>
+            <hr class="my-4">
+            <p>Go to your Case List to manage subrogation demands.</p>
+            <a class="btn btn-primary btn-lg" href="/cases" role="button">View Cases</a>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="container px-4 py-5" id="featured-3">
+            <h2 class="pb-2 border-bottom">Subrogation Demand Management</h2>
+            <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+                <div class="feature col">
+                    <div class="feature-icon bg-primary bg-gradient">
+                        <span class="oi oi-document text-white p-3"></span>
+                    </div>
+                    <h2>Manage Cases</h2>
+                    <p>Track subrogation claims, policy details, and recovery efforts in one place.</p>
+                </div>
+                <div class="feature col">
+                    <div class="feature-icon bg-primary bg-gradient">
+                        <span class="oi oi-file text-white p-3"></span>
+                    </div>
+                    <h2>Generate Demands</h2>
+                    <p>Automatically generate comprehensive demand packages with all supporting documents.</p>
+                </div>
+                <div class="feature col">
+                    <div class="feature-icon bg-primary bg-gradient">
+                        <span class="oi oi-envelope-closed text-white p-3"></span>
+                    </div>
+                    <h2>Send & Track</h2>
+                    <p>Email packages directly to third-party carriers and track responses.</p>
+                </div>
+            </div>
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                <button type="button" class="btn btn-primary btn-lg px-4 gap-3" @onclick="Login">Log in to Dashboard</button>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
-<p>Welcome to the Subrogation Demand Management application.</p>
-
-<p>This is the MVP foundation. Features coming soon:</p>
-<ul>
-    <li>Claim search and context loading</li>
-    <li>Subrogation case creation</li>
-    <li>Demand package assembly</li>
-    <li>PDF generation</li>
-    <li>Email delivery</li>
-</ul>
+@code {
+    private void Login()
+    {
+        Navigation.NavigateToLogin("authentication/login");
+    }
+}
