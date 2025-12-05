@@ -4,6 +4,8 @@ using SubrogationDemandManagement.Services.Messaging.Messages;
 using SubrogationDemandManagement.Services.Data.Repositories;
 using SubrogationDemandManagement.Services.Storage;
 using SubrogationDemandManagement.Domain.Models;
+using SubrogationDemandManagement.Functions.Services;
+using QuestPDF.Fluent;
 using System.Text.Json;
 
 namespace SubrogationDemandManagement.Functions;
@@ -12,15 +14,18 @@ public class GeneratePDFFunction
 {
     private readonly ILogger<GeneratePDFFunction> _logger;
     private readonly DemandPackageRepository _packageRepository;
+    private readonly ISubrogationCaseRepository _caseRepository;
     private readonly BlobStorageService _blobStorage;
 
     public GeneratePDFFunction(
         ILogger<GeneratePDFFunction> logger,
         DemandPackageRepository packageRepository,
+        ISubrogationCaseRepository caseRepository,
         BlobStorageService blobStorage)
     {
         _logger = logger;
         _packageRepository = packageRepository;
+        _caseRepository = caseRepository;
         _blobStorage = blobStorage;
     }
 
@@ -57,21 +62,20 @@ public class GeneratePDFFunction
                 throw new InvalidOperationException($"Package {message.PackageId} not found");
             }
 
-            // TODO: Implement actual PDF generation logic
-            // 1. Download cover letter template from Blob Storage
-            // 2. Download all documents from Blob Storage
-            // 3. Merge into single PDF with bookmarks
-            // 4. Add headers/footers
-            // 5. Compress PDF
+            // Get case details
+            var subrogationCase = await _caseRepository.GetByIdAsync(package.SubrogationCaseId);
+            if (subrogationCase == null)
+            {
+                _logger.LogError("Case {CaseId} not found", package.SubrogationCaseId);
+                throw new InvalidOperationException($"Case {package.SubrogationCaseId} not found");
+            }
+
+            // Generate PDF using QuestPDF
+            _logger.LogInformation("Generating PDF document...");
+            var document = new DemandPackageDocument(subrogationCase, package);
+            var pdfBytes = document.GeneratePdf();
             
-            // For now, simulate PDF generation
-            await Task.Delay(500); // Simulate work
-            
-            // Create a simple PDF stream (placeholder)
-            using var pdfStream = new MemoryStream();
-            var pdfContent = System.Text.Encoding.UTF8.GetBytes($"PDF Package for {message.PackageId}");
-            await pdfStream.WriteAsync(pdfContent);
-            pdfStream.Position = 0;
+            using var pdfStream = new MemoryStream(pdfBytes);
             
             // Upload generated PDF to Blob Storage
             var pdfPath = await _blobStorage.UploadPackageAsync(
@@ -80,15 +84,15 @@ public class GeneratePDFFunction
                 pdfStream);
             
             // Calculate hash for audit
-            var pdfHash = CalculateHash(pdfContent);
+            var pdfHash = CalculateHash(pdfBytes);
             
             // Update package with generated PDF info
             await _packageRepository.UpdateGeneratedPdfAsync(
                 message.PackageId,
                 pdfPath,
                 pdfHash,
-                pdfContent.Length,
-                1); // Page count
+                pdfBytes.Length,
+                1); // TODO: Get actual page count if needed
             
             var duration = DateTime.UtcNow - startTime;
             var memoryUsed = (GC.GetTotalMemory(false) - startMemory) / (1024 * 1024); // MB
@@ -96,9 +100,6 @@ public class GeneratePDFFunction
             _logger.LogInformation(
                 "PDF generation completed for package {PackageId} in {Duration}ms, Memory: {Memory}MB",
                 message.PackageId, duration.TotalMilliseconds, memoryUsed);
-            
-            // TODO: Track cost metrics
-            // await _costTracker.TrackExecution("GeneratePDF", duration, memoryUsed);
         }
         catch (Exception ex)
         {

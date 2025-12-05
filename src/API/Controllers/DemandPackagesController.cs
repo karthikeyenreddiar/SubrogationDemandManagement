@@ -12,15 +12,18 @@ public class DemandPackagesController : ControllerBase
 {
     private readonly ILogger<DemandPackagesController> _logger;
     private readonly DemandPackageRepository _repository;
+    private readonly CommunicationLogRepository _communicationRepository;
     private readonly ServiceBusService _serviceBus;
 
     public DemandPackagesController(
         ILogger<DemandPackagesController> logger,
         DemandPackageRepository repository,
+        CommunicationLogRepository communicationRepository,
         ServiceBusService serviceBus)
     {
         _logger = logger;
         _repository = repository;
+        _communicationRepository = communicationRepository;
         _serviceBus = serviceBus;
     }
 
@@ -127,6 +130,26 @@ public class DemandPackagesController : ControllerBase
         
         // Create communication log
         var communicationId = Guid.NewGuid();
+        var communicationLog = new CommunicationLog
+        {
+            CommunicationId = communicationId,
+            DemandPackageId = package.PackageId,
+            TenantId = package.TenantId,
+            Action = CommunicationAction.InitialDemand,
+            Channel = CommunicationChannel.Email,
+            RecipientsJson = System.Text.Json.JsonSerializer.Serialize(request.Recipients),
+            CcRecipientsJson = request.CcRecipients != null 
+                ? System.Text.Json.JsonSerializer.Serialize(request.CcRecipients) 
+                : null,
+            EmailSubject = request.Subject,
+            EmailBody = request.Body,
+            FromAddress = "noreply@subrogationsaas.com",
+            Status = CommunicationStatus.Queued,
+            InitiatedBy = User.Identity?.Name ?? "System",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _communicationRepository.CreateAsync(communicationLog);
         
         // Send message to Service Bus queue 'email-delivery'
         var message = new EmailDeliveryMessage
@@ -144,7 +167,8 @@ public class DemandPackagesController : ControllerBase
         
         await _serviceBus.SendMessageAsync("email-delivery", message);
         
-        _logger.LogInformation("Email delivery queued for package {PackageId}", id);
+        _logger.LogInformation("Email delivery queued for package {PackageId}, communication {CommunicationId}", 
+            id, communicationId);
         
         return Accepted(new { message = "Email delivery queued", packageId = id, communicationId });
     }

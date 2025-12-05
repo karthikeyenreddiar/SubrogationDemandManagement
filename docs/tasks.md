@@ -47,8 +47,8 @@
 - [x] Add Authorization policies (Tenant isolation)
 
 ### Functional Implementation
-- [ ] Implement real PDF generation (QuestPDF/PdfSharp)
-- [ ] Implement real Email sending (SendGrid/ACS)
+- [x] Implement real PDF generation (QuestPDF/PdfSharp)
+- [x] Implement real Email sending (SendGrid/ACS)
 - [ ] Add file upload capability in UI
 - [ ] Implement "Parent System Sync" logic
 

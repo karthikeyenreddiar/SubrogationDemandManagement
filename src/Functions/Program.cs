@@ -6,6 +6,10 @@ using Microsoft.EntityFrameworkCore;
 using SubrogationDemandManagement.Services.Data;
 using SubrogationDemandManagement.Services.Data.Repositories;
 using SubrogationDemandManagement.Services.Storage;
+using QuestPDF.Infrastructure;
+
+// Set QuestPDF License
+QuestPDF.Settings.License = LicenseType.Community;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
@@ -29,6 +33,7 @@ var host = new HostBuilder()
         services.AddScoped<ISubrogationCaseRepository, SubrogationCaseRepository>();
         services.AddScoped<SubrogationCaseRepository>();
         services.AddScoped<DemandPackageRepository>();
+        services.AddScoped<CommunicationLogRepository>();
 
         // Register Azure services
         services.AddSingleton<BlobStorageService>();

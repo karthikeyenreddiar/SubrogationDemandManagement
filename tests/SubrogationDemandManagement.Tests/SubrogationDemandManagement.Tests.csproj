@@ -25,9 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Domain\SubrogationDemandManagement.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Services\SubrogationDemandManagement.Services.csproj" />
-    <ProjectReference Include="..\..\src\API\SubrogationDemandManagement.API.csproj" />
+    <ProjectReference Include="..\\..\\src\\Domain\\SubrogationDemandManagement.Domain.csproj" />
+    <ProjectReference Include="..\\..\\src\\Services\\SubrogationDemandManagement.Services.csproj" />
+    <ProjectReference Include="..\\..\\src\\API\\SubrogationDemandManagement.API.csproj" />
+    <ProjectReference Include="..\\..\\src\\Functions\\SubrogationDemandManagement.Functions.csproj" />
   </ItemGroup>
 
 </Project>
