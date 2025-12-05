@@ -49,7 +49,7 @@
 ### Functional Implementation
 - [x] Implement real PDF generation (QuestPDF/PdfSharp)
 - [x] Implement real Email sending (SendGrid/ACS)
-- [ ] Add file upload capability in UI
+- [x] Add file upload capability in UI
 - [ ] Implement "Parent System Sync" logic
 
 ### DevOps

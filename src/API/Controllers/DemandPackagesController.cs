@@ -3,6 +3,7 @@ using SubrogationDemandManagement.Domain.Models;
 using SubrogationDemandManagement.Services.Data.Repositories;
 using SubrogationDemandManagement.Services.Messaging;
 using SubrogationDemandManagement.Services.Messaging.Messages;
+using SubrogationDemandManagement.Services.Storage;
 
 namespace SubrogationDemandManagement.API.Controllers;
 
@@ -14,17 +15,20 @@ public class DemandPackagesController : ControllerBase
     private readonly DemandPackageRepository _repository;
     private readonly CommunicationLogRepository _communicationRepository;
     private readonly ServiceBusService _serviceBus;
+    private readonly BlobStorageService _blobStorage;
 
     public DemandPackagesController(
         ILogger<DemandPackagesController> logger,
         DemandPackageRepository repository,
         CommunicationLogRepository communicationRepository,
-        ServiceBusService serviceBus)
+        ServiceBusService serviceBus,
+        BlobStorageService blobStorage)
     {
         _logger = logger;
         _repository = repository;
         _communicationRepository = communicationRepository;
         _serviceBus = serviceBus;
+        _blobStorage = blobStorage;
     }
 
     /// <summary>
@@ -174,20 +178,168 @@ public class DemandPackagesController : ControllerBase
     }
 
     /// <summary>
-    /// Add document to package
+    /// Upload file to package
     /// </summary>
-    [HttpPost("{id}/documents")]
-    public async Task<ActionResult> AddDocument(Guid id, [FromBody] PackageDocument document)
+    [HttpPost("{id}/upload")]
+    [RequestSizeLimit(52428800)] // 50 MB limit
+    public async Task<ActionResult<PackageDocument>> UploadFile(
+        Guid id,
+        [FromForm] IFormFile file,
+        [FromForm] string documentName,
+        [FromForm] DocumentType documentType = DocumentType.Other,
+        [FromForm] int displayOrder = 0,
+        [FromForm] bool isIncluded = true,
+        [FromForm] bool isSensitive = false)
     {
-        _logger.LogInformation("Adding document to package {PackageId}", id);
+        _logger.LogInformation("Uploading file to package {PackageId}: {FileName}", id, file?.FileName);
         
-        document.PackageDocumentId = Guid.NewGuid();
-        document.DemandPackageId = id;
-        document.UploadedAt = DateTime.UtcNow;
+        // Validate package exists
+        var package = await _repository.GetByIdAsync(id);
+        if (package == null)
+            return NotFound($"Package {id} not found");
         
-        await _repository.AddDocumentAsync(document);
+        // Validate file
+        if (file == null || file.Length == 0)
+            return BadRequest("No file provided");
         
-        return CreatedAtAction(nameof(GetPackage), new { id }, document);
+        // Validate file size (50 MB max)
+        if (file.Length > 52428800)
+            return BadRequest("File size exceeds 50 MB limit");
+        
+        // Validate file type
+        var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".xls", ".xlsx", ".txt" };
+        var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(fileExtension))
+            return BadRequest($"File type {fileExtension} is not allowed. Allowed types: {string.Join(", ", allowedExtensions)}");
+        
+        try
+        {
+            // Upload to blob storage
+            string blobPath;
+            using (var stream = file.OpenReadStream())
+            {
+                blobPath = await _blobStorage.UploadDocumentAsync(
+                    package.TenantId,
+                    package.PackageId,
+                    file.FileName,
+                    stream,
+                    file.ContentType);
+            }
+            
+            // Create document record
+            var document = new PackageDocument
+            {
+                PackageDocumentId = Guid.NewGuid(),
+                DemandPackageId = id,
+                DocumentName = string.IsNullOrWhiteSpace(documentName) ? file.FileName : documentName,
+                Type = documentType,
+                Source = DocumentSource.UserUpload,
+                BlobStoragePath = blobPath,
+                DisplayOrder = displayOrder,
+                IsIncluded = isIncluded,
+                IsSensitive = isSensitive,
+                UploadedAt = DateTime.UtcNow
+            };
+            
+            await _repository.AddDocumentAsync(document);
+            
+            _logger.LogInformation(
+                "File uploaded successfully to package {PackageId}: {DocumentId} - {BlobPath}",
+                id, document.PackageDocumentId, blobPath);
+            
+            return CreatedAtAction(nameof(GetPackage), new { id }, document);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file to package {PackageId}", id);
+            return StatusCode(500, "An error occurred while uploading the file");
+        }
+    }
+
+    /// <summary>
+    /// Get documents for a package
+    /// </summary>
+    [HttpGet("{id}/documents")]
+    public async Task<ActionResult<IEnumerable<PackageDocument>>> GetDocuments(Guid id)
+    {
+        _logger.LogInformation("Fetching documents for package {PackageId}", id);
+        
+        var package = await _repository.GetByIdWithDocumentsAsync(id);
+        if (package == null)
+            return NotFound($"Package {id} not found");
+        
+        return Ok(package.Documents.OrderBy(d => d.DisplayOrder));
+    }
+
+    /// <summary>
+    /// Delete document from package
+    /// </summary>
+    [HttpDelete("{id}/documents/{documentId}")]
+    public async Task<ActionResult> DeleteDocument(Guid id, Guid documentId)
+    {
+        _logger.LogInformation("Deleting document {DocumentId} from package {PackageId}", documentId, id);
+        
+        var package = await _repository.GetByIdWithDocumentsAsync(id);
+        if (package == null)
+            return NotFound($"Package {id} not found");
+        
+        var document = package.Documents.FirstOrDefault(d => d.PackageDocumentId == documentId);
+        if (document == null)
+            return NotFound($"Document {documentId} not found");
+        
+        try
+        {
+            // Delete from blob storage
+            await _blobStorage.DeleteBlobAsync(document.BlobStoragePath, "documents");
+            
+            // Delete from database
+            await _repository.DeleteDocumentAsync(documentId);
+            
+            _logger.LogInformation("Document {DocumentId} deleted successfully", documentId);
+            
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting document {DocumentId}", documentId);
+            return StatusCode(500, "An error occurred while deleting the document");
+        }
+    }
+
+    /// <summary>
+    /// Download document
+    /// </summary>
+    [HttpGet("{id}/documents/{documentId}/download")]
+    public async Task<ActionResult> DownloadDocument(Guid id, Guid documentId)
+    {
+        _logger.LogInformation("Downloading document {DocumentId} from package {PackageId}", documentId, id);
+        
+        var package = await _repository.GetByIdWithDocumentsAsync(id);
+        if (package == null)
+            return NotFound($"Package {id} not found");
+        
+        var document = package.Documents.FirstOrDefault(d => d.PackageDocumentId == documentId);
+        if (document == null)
+            return NotFound($"Document {documentId} not found");
+        
+        try
+        {
+            var stream = await _blobStorage.DownloadDocumentAsync(document.BlobStoragePath);
+            var fileName = Path.GetFileName(document.BlobStoragePath);
+            
+            // Determine content type
+            var contentType = document.BlobStoragePath.EndsWith(".pdf") ? "application/pdf" :
+                             document.BlobStoragePath.EndsWith(".jpg") || document.BlobStoragePath.EndsWith(".jpeg") ? "image/jpeg" :
+                             document.BlobStoragePath.EndsWith(".png") ? "image/png" :
+                             "application/octet-stream";
+            
+            return File(stream, contentType, fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading document {DocumentId}", documentId);
+            return StatusCode(500, "An error occurred while downloading the document");
+        }
     }
 }
 

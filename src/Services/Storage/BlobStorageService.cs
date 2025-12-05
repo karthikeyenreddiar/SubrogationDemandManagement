@@ -33,7 +33,7 @@ public class BlobStorageService
     /// <summary>
     /// Upload document to blob storage
     /// </summary>
-    public async Task<string> UploadDocumentAsync(
+    public virtual async Task<string> UploadDocumentAsync(
         Guid tenantId, 
         Guid packageId, 
         string fileName, 
@@ -61,7 +61,7 @@ public class BlobStorageService
     /// <summary>
     /// Upload generated PDF package
     /// </summary>
-    public async Task<string> UploadPackageAsync(
+    public virtual async Task<string> UploadPackageAsync(
         Guid tenantId, 
         Guid packageId, 
         Stream pdfContent)
@@ -87,7 +87,7 @@ public class BlobStorageService
     /// <summary>
     /// Download blob as stream
     /// </summary>
-    public async Task<Stream> DownloadBlobAsync(string blobPath, string containerName)
+    public virtual async Task<Stream> DownloadBlobAsync(string blobPath, string containerName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = containerClient.GetBlobClient(blobPath);
@@ -99,7 +99,7 @@ public class BlobStorageService
     /// <summary>
     /// Download document
     /// </summary>
-    public async Task<Stream> DownloadDocumentAsync(string blobPath)
+    public virtual async Task<Stream> DownloadDocumentAsync(string blobPath)
     {
         return await DownloadBlobAsync(blobPath, _documentsContainer);
     }
@@ -107,7 +107,7 @@ public class BlobStorageService
     /// <summary>
     /// Download package PDF
     /// </summary>
-    public async Task<Stream> DownloadPackageAsync(string blobPath)
+    public virtual async Task<Stream> DownloadPackageAsync(string blobPath)
     {
         return await DownloadBlobAsync(blobPath, _packagesContainer);
     }
@@ -115,7 +115,7 @@ public class BlobStorageService
     /// <summary>
     /// Download template
     /// </summary>
-    public async Task<Stream> DownloadTemplateAsync(string blobPath)
+    public virtual async Task<Stream> DownloadTemplateAsync(string blobPath)
     {
         return await DownloadBlobAsync(blobPath, _templatesContainer);
     }
@@ -123,7 +123,7 @@ public class BlobStorageService
     /// <summary>
     /// Delete blob
     /// </summary>
-    public async Task DeleteBlobAsync(string blobPath, string containerName)
+    public virtual async Task DeleteBlobAsync(string blobPath, string containerName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = containerClient.GetBlobClient(blobPath);
@@ -136,7 +136,7 @@ public class BlobStorageService
     /// <summary>
     /// Get blob properties (size, content type, etc.)
     /// </summary>
-    public async Task<BlobProperties> GetBlobPropertiesAsync(string blobPath, string containerName)
+    public virtual async Task<BlobProperties> GetBlobPropertiesAsync(string blobPath, string containerName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = containerClient.GetBlobClient(blobPath);

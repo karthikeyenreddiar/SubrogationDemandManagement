@@ -66,4 +66,22 @@ public class SubrogationApiClient
         var response = await _httpClient.PostAsJsonAsync($"api/DemandPackages/{packageId}/send", request);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UploadDocumentAsync(Guid packageId, MultipartFormDataContent content)
+    {
+        var response = await _httpClient.PostAsync($"api/DemandPackages/{packageId}/upload", content);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<PackageDocument>> GetDocumentsAsync(Guid packageId)
+    {
+        return await _httpClient.GetFromJsonAsync<List<PackageDocument>>(
+            $"api/DemandPackages/{packageId}/documents") ?? new List<PackageDocument>();
+    }
+
+    public async Task DeleteDocumentAsync(Guid packageId, Guid documentId)
+    {
+        var response = await _httpClient.DeleteAsync($"api/DemandPackages/{packageId}/documents/{documentId}");
+        response.EnsureSuccessStatusCode();
+    }
 }

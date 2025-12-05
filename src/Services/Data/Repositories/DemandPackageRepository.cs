@@ -18,7 +18,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Get package by ID without documents (lightweight)
     /// </summary>
-    public async Task<DemandPackage?> GetByIdAsync(Guid packageId)
+    public virtual async Task<DemandPackage?> GetByIdAsync(Guid packageId)
     {
         return await _context.DemandPackages
             .AsNoTracking()
@@ -28,7 +28,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Get package with documents using explicit loading (performance optimized)
     /// </summary>
-    public async Task<DemandPackage?> GetByIdWithDocumentsAsync(Guid packageId)
+    public virtual async Task<DemandPackage?> GetByIdWithDocumentsAsync(Guid packageId)
     {
         var package = await _context.DemandPackages
             .AsNoTracking()
@@ -52,7 +52,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Get packages by case ID (no tracking, no documents)
     /// </summary>
-    public async Task<List<DemandPackage>> GetByCaseIdAsync(Guid caseId)
+    public virtual async Task<List<DemandPackage>> GetByCaseIdAsync(Guid caseId)
     {
         return await _context.DemandPackages
             .AsNoTracking()
@@ -64,7 +64,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Get latest package version for a case
     /// </summary>
-    public async Task<DemandPackage?> GetLatestByCaseIdAsync(Guid caseId)
+    public virtual async Task<DemandPackage?> GetLatestByCaseIdAsync(Guid caseId)
     {
         return await _context.DemandPackages
             .AsNoTracking()
@@ -76,7 +76,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Create new package
     /// </summary>
-    public async Task<DemandPackage> CreateAsync(DemandPackage package)
+    public virtual async Task<DemandPackage> CreateAsync(DemandPackage package)
     {
         _context.DemandPackages.Add(package);
         await _context.SaveChangesAsync();
@@ -86,7 +86,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Update package status (optimized - only updates status field)
     /// </summary>
-    public async Task UpdateStatusAsync(Guid packageId, PackageStatus status)
+    public virtual async Task UpdateStatusAsync(Guid packageId, PackageStatus status)
     {
         await _context.DemandPackages
             .Where(p => p.PackageId == packageId)
@@ -97,7 +97,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Update package with generated PDF info
     /// </summary>
-    public async Task UpdateGeneratedPdfAsync(
+    public virtual async Task UpdateGeneratedPdfAsync(
         Guid packageId, 
         string pdfPath, 
         string pdfHash, 
@@ -117,16 +117,26 @@ public class DemandPackageRepository
     /// <summary>
     /// Add document to package
     /// </summary>
-    public async Task AddDocumentAsync(PackageDocument document)
+    public virtual async Task AddDocumentAsync(PackageDocument document)
     {
         _context.PackageDocuments.Add(document);
         await _context.SaveChangesAsync();
     }
 
     /// <summary>
+    /// Delete document from package
+    /// </summary>
+    public virtual async Task DeleteDocumentAsync(Guid documentId)
+    {
+        await _context.PackageDocuments
+            .Where(d => d.PackageDocumentId == documentId)
+            .ExecuteDeleteAsync();
+    }
+
+    /// <summary>
     /// Update document display order (batch update)
     /// </summary>
-    public async Task UpdateDocumentOrderAsync(Dictionary<Guid, int> documentOrders)
+    public virtual async Task UpdateDocumentOrderAsync(Dictionary<Guid, int> documentOrders)
     {
         foreach (var (documentId, order) in documentOrders)
         {
@@ -140,7 +150,7 @@ public class DemandPackageRepository
     /// <summary>
     /// Get packages by status for monitoring (lightweight projection)
     /// </summary>
-    public async Task<List<(Guid PackageId, Guid CaseId, PackageStatus Status, DateTime CreatedAt)>> 
+    public virtual async Task<List<(Guid PackageId, Guid CaseId, PackageStatus Status, DateTime CreatedAt)>> 
         GetByStatusAsync(PackageStatus status, int limit = 100)
     {
         return await _context.DemandPackages
